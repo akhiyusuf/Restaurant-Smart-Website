@@ -5,12 +5,13 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
-  const env = loadEnv(mode, '.', '');
+  const env = loadEnv(mode, (process as any).cwd(), '');
   return {
     plugins: [react()],
     define: {
-      // Polyfill process.env for the browser so your service code works without changes
-      'process.env': env
+      // Safely inject ONLY the API key. 
+      // Do not overwrite 'process.env' entirely as it breaks React's production checks (NODE_ENV).
+      'process.env.API_KEY': JSON.stringify(env.API_KEY)
     }
   };
 });
