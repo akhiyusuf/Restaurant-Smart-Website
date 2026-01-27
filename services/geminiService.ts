@@ -5,7 +5,6 @@ import { CartItem } from "../types";
 // Initialize cache with static images, will be populated with AI images as they generate
 export const imageCache: Record<string, string> = { ...STATIC_IMAGES };
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 let chatSession: ChatSession | null = null;
 
 const tools: FunctionDeclaration[] = [
@@ -43,6 +42,16 @@ const tools: FunctionDeclaration[] = [
   }
 ];
 
+// Helper to safely get the AI client
+const getAiClient = (): GoogleGenAI | null => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("API_KEY is not set. AI features will be disabled.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
 export const initializeChat = async (): Promise<boolean> => {
   // Check if keys are available
   const hasKey = !!process.env.API_KEY;
@@ -63,10 +72,8 @@ export const preloadApp = async (heroDishName: string, heroDescription: string):
 };
 
 export const sendMessageToGemini = async (message: string, cartItems: CartItem[] = []): Promise<GenerateContentResponse | null> => {
-  if (!process.env.API_KEY) {
-      console.error("API_KEY not found");
-      return null;
-  }
+  const ai = getAiClient();
+  if (!ai) return null;
 
   if (!chatSession) {
     chatSession = ai.chats.create({
@@ -119,8 +126,8 @@ export const generateDishImage = async (dishName: string, description: string): 
   // Return cached image if exists
   if (imageCache[dishName]) return imageCache[dishName];
 
-  // Fallback to static if no key
-  if (!process.env.API_KEY) {
+  const ai = getAiClient();
+  if (!ai) {
       return STATIC_IMAGES[dishName] || null;
   }
 
