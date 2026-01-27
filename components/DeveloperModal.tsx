@@ -66,7 +66,7 @@ const DeveloperModal: React.FC<DeveloperModalProps> = ({ isOpen, onClose }) => {
                             <Server className="w-4 h-4 text-blue-500" /> AI Infrastructure
                         </h3>
                          <ul className="space-y-2 text-sm text-stone-400">
-                            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Google Gemini 2.5 Flash</li>
+                            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Google Gemini 3 Flash</li>
                             <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Real-time Function Calling</li>
                             <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Dynamic Asset Generation</li>
                         </ul>

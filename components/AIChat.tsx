@@ -4,6 +4,7 @@ import { Send, Sparkles, User, Minimize2, CreditCard, ChevronDown } from 'lucide
 import { ChatMessage, MenuItem, CartItem } from '../types';
 import { sendMessageToGemini, sendToolResponseToGemini } from '../services/geminiService';
 import { MENU_ITEMS } from '../constants';
+import { GenerateContentResponse } from '@google/genai';
 
 interface AIChatProps {
   isOpen: boolean;
@@ -30,40 +31,24 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
     scrollToBottom();
   }, [messages, isOpen, isLoading]);
 
-  const handleResponse = async (rawResponse: any) => {
-    // rawResponse is now an OpenAI-compatible response object from Groq
-    if (!rawResponse || !rawResponse.choices || rawResponse.choices.length === 0) {
+  const handleResponse = async (response: GenerateContentResponse | null) => {
+    if (!response) {
        setMessages(prev => [...prev, { role: 'model', text: "I'm having trouble connecting to the network right now. Please check your connection or try again in a moment.", timestamp: Date.now() }]);
        return;
     }
 
-    const messageData = rawResponse.choices[0].message;
-    
     // 1. Handle Tool Calls
-    // Structure: messageData.tool_calls = [{ id, type: 'function', function: { name, arguments } }]
-    const toolCalls = messageData.tool_calls;
+    const functionCalls = response.functionCalls;
     
-    if (toolCalls && toolCalls.length > 0) {
+    if (functionCalls && functionCalls.length > 0) {
       const toolResponses = [];
 
-      for (const toolCall of toolCalls) {
-        const fc = toolCall.function;
-        if (!fc) continue;
-
-        let args = {};
-        try {
-            args = JSON.parse(fc.arguments);
-        } catch (e) {
-            console.error("Failed to parse tool arguments", e);
-            continue;
-        }
-
+      for (const fc of functionCalls) {
         let result = "failed";
+        const args = fc.args as any;
 
         if (fc.name === 'addToOrder') {
-           // @ts-ignore
            const item = MENU_ITEMS.find(i => i.id === args.itemId);
-           // @ts-ignore
            const qty = args.quantity || 1;
            if (item) {
              addToCart(item, qty);
@@ -72,9 +57,7 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
              result = "Item not found.";
            }
         } else if (fc.name === 'removeFromOrder') {
-            // @ts-ignore
             removeFromCart(args.itemId);
-            // @ts-ignore
             result = `Removed item ${args.itemId} from cart.`;
         }
 
@@ -82,7 +65,7 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
           functionResponse: {
             name: fc.name,
             response: { result: result },
-            id: toolCall.id
+            id: fc.id
           }
         });
       }
@@ -96,7 +79,7 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
     }
 
     // 2. Handle Text Response
-    const textContent = messageData.content;
+    const textContent = response.text;
     
     if (textContent) {
       let text = textContent;
