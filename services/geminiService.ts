@@ -1,143 +1,171 @@
-import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
-import { AI_SYSTEM_INSTRUCTION, toolsDeclarations, MENU_ITEMS } from "../constants";
+import { AI_SYSTEM_INSTRUCTION, toolsDeclarations, STATIC_IMAGES } from "../constants";
 import { CartItem } from "../types";
 
-let chatSession: Chat | null = null;
-let genAI: GoogleGenAI | null = null;
-export const imageCache: Record<string, string> = {};
+// Maintain conversation history in memory for the session
+// Groq/OpenAI API is stateless, so we must send history with every request
+let chatHistory: any[] = [
+  { role: "system", content: AI_SYSTEM_INSTRUCTION }
+];
 
-const getGenAI = (): GoogleGenAI => {
-  if (!genAI) {
-    genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  }
-  return genAI;
-};
+// Initialize cache with static images, will be populated with AI images as they generate
+export const imageCache: Record<string, string> = { ...STATIC_IMAGES };
 
 export const initializeChat = async (): Promise<boolean> => {
-  const ai = getGenAI();
-  try {
-    chatSession = ai.chats.create({
-      model: "gemini-2.5-flash",
-      config: {
-        systemInstruction: AI_SYSTEM_INSTRUCTION,
-        temperature: 0.7,
-        tools: [{ functionDeclarations: toolsDeclarations }]
-      },
-    });
-    return true;
-  } catch (error) {
-    console.error("Failed to initialize chat:", error);
-    return false;
+  // Check if keys are available
+  const hasKey = !!process.env.GROQ_API_KEY;
+  if (!hasKey) {
+    console.warn("GROQ_API_KEY is missing. Chat features will not work.");
   }
-};
-
-const generateBackgroundMenuImages = async () => {
-  // Generate Menu Images Sequentially with Rate Limiting
-  // Gemini Free Tier is approx 15 RPM.
-  for (let i = 0; i < MENU_ITEMS.length; i++) {
-    const item = MENU_ITEMS[i];
-    
-    // Skip if already cached
-    if (imageCache[item.name]) continue;
-
-    try {
-      await generateDishImage(item.name, item.description);
-    } catch (e) {
-      console.warn(`Failed to generate image for ${item.name}`, e);
-    }
-
-    // Add delay between requests
-    if (i < MENU_ITEMS.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 4000));
-    }
-  }
+  return hasKey;
 };
 
 export const preloadApp = async (heroDishName: string, heroDescription: string): Promise<boolean> => {
-  // Initialize Chat in background
-  const chatPromise = initializeChat();
-  
-  // 1. Generate Hero Image (Priority - Block loading screen for this)
-  await generateDishImage(heroDishName, heroDescription);
-  
-  // 2. Start background generation for the rest (Do not await)
-  generateBackgroundMenuImages();
-
-  // Ensure chat is ready before finishing
-  await chatPromise;
-  
-  return !!chatSession;
+  // Attempt to generate the hero image early if we have a key
+  if (!imageCache[heroDishName]) {
+      await generateDishImage(heroDishName, heroDescription);
+  }
+  return true;
 };
 
-// Now returns the full response object to handle function calls in the UI
-export const sendMessageToGemini = async (message: string, cartItems: CartItem[] = []): Promise<GenerateContentResponse | null> => {
-  if (!chatSession) {
-    const success = await initializeChat();
-    if (!success) return null;
+export const sendMessageToGemini = async (message: string, cartItems: CartItem[] = []): Promise<any | null> => {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+      console.error("GROQ_API_KEY not found");
+      return null;
   }
 
-  if (!chatSession) {
-    return null;
-  }
-
-  // Inject Context about the cart
+  // 1. Construct System Context based on current cart
   const cartSummary = cartItems.map(i => `${i.quantity}x ${i.name}`).join(', ');
-  const context = `[System Context: Current Cart contains ${cartItems.length} distinct items. Items: ${cartSummary || 'Empty'}. Total Items: ${cartItems.reduce((acc, i) => acc + i.quantity, 0)}].`;
-  const fullMessage = `${context} ${message}`;
+  const systemContext = `[System Context: Current Cart: ${cartSummary || 'Empty'}. Total Items: ${cartItems.reduce((acc, i) => acc + i.quantity, 0)}]`;
+  
+  // 2. Append context to user message (stateless approach)
+  const fullMessage = `${systemContext} ${message}`;
+
+  // 3. Update History
+  chatHistory.push({ role: "user", content: fullMessage });
 
   try {
-    const response: GenerateContentResponse = await chatSession.sendMessage({
-      message: fullMessage,
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: chatHistory,
+        tools: toolsDeclarations,
+        tool_choice: "auto"
+      })
     });
-    return response;
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Groq API Error: ${err}`);
+    }
+    
+    const data = await response.json();
+    const assistantMessage = data.choices[0].message;
+    
+    // 4. Add assistant response to history
+    chatHistory.push(assistantMessage);
+
+    return data;
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("AI Service Error:", error);
     return null;
   }
 };
 
-export const sendToolResponseToGemini = async (toolResponses: any[]): Promise<GenerateContentResponse | null> => {
-  if (!chatSession) return null;
-  if (!toolResponses || toolResponses.length === 0) {
-    console.error("Attempted to send empty tool response");
-    return null;
-  }
-  
+export const sendToolResponseToGemini = async (toolResponses: any[]): Promise<any | null> => {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+
+  // The UI sends us tool results in a specific format, we need to convert them 
+  // to the OpenAI "tool" role format for Groq.
+  toolResponses.forEach(tr => {
+      chatHistory.push({
+          role: "tool",
+          tool_call_id: tr.functionResponse.id,
+          name: tr.functionResponse.name,
+          content: JSON.stringify(tr.functionResponse.response)
+      });
+  });
+
   try {
-    const response = await chatSession.sendMessage({ message: toolResponses });
-    return response;
+     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: chatHistory,
+        tools: toolsDeclarations
+      })
+    });
+
+    if (!response.ok) throw new Error(`Groq API Error: ${response.statusText}`);
+
+    const data = await response.json();
+    const assistantMessage = data.choices[0].message;
+    chatHistory.push(assistantMessage);
+
+    return data;
   } catch (error) {
-    console.error("Gemini Tool Response Error:", error);
+    console.error("AI Tool Follow-up Error:", error);
     return null;
   }
 };
 
 export const generateDishImage = async (dishName: string, description: string): Promise<string | null> => {
-  // Check cache first
+  // Return cached image if exists
   if (imageCache[dishName]) return imageCache[dishName];
 
-  const ai = getGenAI();
-  try {
-    const prompt = `Professional food photography of ${dishName}, ${description}. High end fine dining, soft lighting, 8k resolution, photorealistic, plated beautifully on ceramic.`;
-    
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [{ text: prompt }]
-      },
-    });
+  const apiKey = process.env.TOGETHER_API_KEY;
+  
+  // Fallback to static if no key
+  if (!apiKey) {
+      return STATIC_IMAGES[dishName] || null;
+  }
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        const url = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        imageCache[dishName] = url; // Cache the result
-        return url;
+  try {
+      // Using black-forest-labs/FLUX.1-dev via Together AI
+      const response = await fetch("https://api.together.xyz/v1/images/generations", {
+          method: "POST",
+          headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+              model: "black-forest-labs/FLUX.1-dev",
+              prompt: `Professional high-end food photography of ${dishName}. ${description}. Michelin star plating, macro detail, cinematic lighting, 8k resolution, photorealistic, depth of field.`,
+              n: 1,
+              steps: 28,
+              width: 1024,
+              height: 1024
+          })
+      });
+
+      if (!response.ok) {
+          throw new Error(`Image Gen Failed: ${response.statusText}`);
       }
-    }
-    return null;
-  } catch (error) {
-    // We log but don't throw, allowing the app to continue without the image
-    console.error(`Image Gen Error for ${dishName}:`, error);
-    return null;
+
+      const data = await response.json();
+      
+      // Together API standard response for Flux
+      const imageUrl = data.data?.[0]?.url;
+      
+      if (imageUrl) {
+          imageCache[dishName] = imageUrl;
+          return imageUrl;
+      }
+      return STATIC_IMAGES[dishName] || null;
+
+  } catch (e) {
+      console.error("Image Gen Error:", e);
+      // Fail gracefully to static image
+      return STATIC_IMAGES[dishName] || null;
   }
 };

@@ -1,5 +1,4 @@
 import { MenuItem, Category } from './types';
-import { FunctionDeclaration, Type } from "@google/genai";
 
 export const MENU_ITEMS: MenuItem[] = [
   {
@@ -130,6 +129,24 @@ export const MENU_ITEMS: MenuItem[] = [
   }
 ];
 
+export const STATIC_IMAGES: Record<string, string> = {
+  "Heirloom Burrata": "https://images.unsplash.com/photo-1608039829572-78524f79c4c7?q=80&w=800&auto=format&fit=crop",
+  "Wagyu Beef Tartare": "https://images.unsplash.com/photo-1544025162-d76690b67f61?q=80&w=800&auto=format&fit=crop",
+  "Scallop Carpaccio": "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?q=80&w=800&auto=format&fit=crop",
+  "Miso Glazed Black Cod": "https://images.unsplash.com/photo-1534939561126-855b8675edd7?q=80&w=800&auto=format&fit=crop",
+  "Herb-Crusted Lamb Rack": "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?q=80&w=800&auto=format&fit=crop",
+  "Wild Mushroom Risotto": "https://images.unsplash.com/photo-1633964861907-709298887b41?q=80&w=800&auto=format&fit=crop",
+  "Pan-Seared Duck Breast": "https://images.unsplash.com/photo-1596797038530-2c107229654b?q=80&w=800&auto=format&fit=crop",
+  "Truffle Tagliolini": "https://images.unsplash.com/photo-1551183053-bf91a1d81141?q=80&w=800&auto=format&fit=crop",
+  "Valrhona Chocolate Sphere": "https://images.unsplash.com/photo-1579372786545-d24232daf58c?q=80&w=800&auto=format&fit=crop",
+  "Yuzu & Basil Tart": "https://images.unsplash.com/photo-1519915028121-7d3463d20b13?q=80&w=800&auto=format&fit=crop",
+  "Pistachio Soufflé": "https://images.unsplash.com/photo-1579954115545-a95591f28bfc?q=80&w=800&auto=format&fit=crop",
+  "Smoked Zero-Proof Old Fashioned": "https://images.unsplash.com/photo-1514362545857-3bc16549766b?q=80&w=800&auto=format&fit=crop",
+  "Sparkling White Tea & Elderflower": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?q=80&w=800&auto=format&fit=crop",
+  "Saffron & Rose Elixir": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?q=80&w=800&auto=format&fit=crop",
+  "Signature Plating": "https://images.unsplash.com/photo-1559339352-11d035aa65de?q=80&w=1200&auto=format&fit=crop"
+};
+
 export const AI_SYSTEM_INSTRUCTION = `
 You are "Astra", the AI Concierge for Lumina, a contemporary fine dining restaurant.
 Your tone is warm, professional, sophisticated, and inviting.
@@ -138,7 +155,7 @@ MENU DATA:
 ${JSON.stringify(MENU_ITEMS)}
 
 YOUR CAPABILITIES:
-1. Recommend dishes.
+1. Recommend dishes based on the menu.
 2. Discuss ingredients. All our food is universally dietary friendly (Halal compliant, though we say "inclusive").
 3. MODIFY THE ORDER: You can add or remove items from the user's cart using the provided tools.
 4. HANDLE PAYMENT: If the user says "I'm ready to order", "Checkout", etc., you must call the tool or reply with {{OPEN_CHECKOUT}}.
@@ -153,42 +170,47 @@ IMPORTANT:
 - When the user wants to add an item, use the 'addToOrder' tool.
 - When the user wants to remove an item, use the 'removeFromOrder' tool.
 - If the user asks for alcohol, politely suggest our "Zero-Proof Botanical Elixirs" which are crafted to rival fine spirits.
-
-Keep responses elegant and concise.
+- Keep responses elegant and concise.
 `;
 
-export const toolsDeclarations: FunctionDeclaration[] = [
+export const toolsDeclarations = [
   {
-    name: 'addToOrder',
-    description: 'Add a menu item to the user\'s cart.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        itemId: {
-          type: Type.STRING,
-          description: 'The ID of the menu item (e.g., s1, m2).',
+    type: "function",
+    function: {
+      name: "addToOrder",
+      description: "Add a menu item to the user's cart.",
+      parameters: {
+        type: "object",
+        properties: {
+          itemId: {
+            type: "string",
+            description: "The ID of the menu item (e.g., s1, m2).",
+          },
+          quantity: {
+            type: "number",
+            description: "The number of items to add.",
+          }
         },
-        quantity: {
-          type: Type.NUMBER,
-          description: 'The number of items to add.',
-        }
+        required: ["itemId"],
       },
-      required: ['itemId'],
-    },
+    }
   },
   {
-    name: 'removeFromOrder',
-    description: 'Remove a menu item from the user\'s cart.',
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        itemId: {
-          type: Type.STRING,
-          description: 'The ID of the menu item to remove.',
-        }
+    type: "function",
+    function: {
+      name: "removeFromOrder",
+      description: "Remove a menu item from the user's cart.",
+      parameters: {
+        type: "object",
+        properties: {
+          itemId: {
+            type: "string",
+            description: "The ID of the menu item to remove.",
+          }
+        },
+        required: ["itemId"],
       },
-      required: ['itemId'],
-    },
+    }
   }
 ];
 

@@ -31,26 +31,39 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
   }, [messages, isOpen, isLoading]);
 
   const handleResponse = async (rawResponse: any) => {
-    if (!rawResponse) {
+    // rawResponse is now an OpenAI-compatible response object from Groq
+    if (!rawResponse || !rawResponse.choices || rawResponse.choices.length === 0) {
        setMessages(prev => [...prev, { role: 'model', text: "I'm having trouble connecting to the network right now. Please check your connection or try again in a moment.", timestamp: Date.now() }]);
        return;
     }
 
-    // Handle Tool Calls
-    const toolCalls = rawResponse.candidates?.[0]?.content?.parts?.filter((p: any) => p.functionCall);
+    const messageData = rawResponse.choices[0].message;
+    
+    // 1. Handle Tool Calls
+    // Structure: messageData.tool_calls = [{ id, type: 'function', function: { name, arguments } }]
+    const toolCalls = messageData.tool_calls;
     
     if (toolCalls && toolCalls.length > 0) {
       const toolResponses = [];
 
-      for (const part of toolCalls) {
-        const fc = part.functionCall;
+      for (const toolCall of toolCalls) {
+        const fc = toolCall.function;
         if (!fc) continue;
 
-        const args = fc.args;
+        let args = {};
+        try {
+            args = JSON.parse(fc.arguments);
+        } catch (e) {
+            console.error("Failed to parse tool arguments", e);
+            continue;
+        }
+
         let result = "failed";
 
         if (fc.name === 'addToOrder') {
+           // @ts-ignore
            const item = MENU_ITEMS.find(i => i.id === args.itemId);
+           // @ts-ignore
            const qty = args.quantity || 1;
            if (item) {
              addToCart(item, qty);
@@ -59,7 +72,9 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
              result = "Item not found.";
            }
         } else if (fc.name === 'removeFromOrder') {
+            // @ts-ignore
             removeFromCart(args.itemId);
+            // @ts-ignore
             result = `Removed item ${args.itemId} from cart.`;
         }
 
@@ -67,12 +82,12 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
           functionResponse: {
             name: fc.name,
             response: { result: result },
-            id: fc.id
+            id: toolCall.id
           }
         });
       }
       
-      // Send tool results back to Gemini to get the final text response
+      // Send tool results back to AI to get the final text response
       if (toolResponses.length > 0) {
         const followUpResponse = await sendToolResponseToGemini(toolResponses);
         await handleResponse(followUpResponse);
@@ -80,10 +95,11 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
       return;
     }
 
-    // Handle Text Response
-    const textPart = rawResponse.candidates?.[0]?.content?.parts?.find((p: any) => p.text);
-    if (textPart) {
-      let text = textPart.text;
+    // 2. Handle Text Response
+    const textContent = messageData.content;
+    
+    if (textContent) {
+      let text = textContent;
       let action: 'checkout' | undefined = undefined;
       
       // Check for checkout token
@@ -110,7 +126,7 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
     setInput('');
     setIsLoading(true);
 
-    // Pass current cart state to Gemini
+    // Pass current cart state to AI
     const response = await sendMessageToGemini(input, cart);
     await handleResponse(response);
 
@@ -131,11 +147,11 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
           transition={{ duration: 0.4, type: "spring", damping: 25, stiffness: 200 }}
           className="fixed inset-0 z-[60] flex flex-col md:inset-auto md:bottom-6 md:right-6 md:w-full md:max-w-[380px] md:h-[550px] md:z-50"
         >
-          {/* Glass Container */}
+          {/* Container - Full screen on mobile, Floating card on Desktop */}
           <div className="relative flex-1 bg-stone-950 md:bg-stone-900/95 backdrop-blur-xl md:border md:border-stone-700/50 md:rounded-2xl shadow-2xl shadow-black/50 overflow-hidden flex flex-col font-sans w-full h-full">
             
             {/* Header */}
-            <div className="p-4 pt-6 md:pt-4 border-b border-stone-800 bg-stone-900 flex items-center justify-between shrink-0">
+            <div className="p-4 pt- safe-top md:pt-4 border-b border-stone-800 bg-stone-900 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center shadow-lg shadow-amber-900/50">
@@ -145,7 +161,7 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-stone-100 tracking-wide">Astra</h3>
-                  <p className="text-[10px] text-amber-500 uppercase tracking-widest font-medium">Concierge</p>
+                  <p className="text-[10px] text-amber-500 uppercase tracking-widest font-medium">Lumina Intelligence</p>
                 </div>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-stone-800 rounded-full transition-colors group">
@@ -217,7 +233,7 @@ const AIChat: React.FC<AIChatProps> = ({ isOpen, onClose, onOpenCheckout, addToC
             </div>
 
             {/* Input */}
-            <div className="p-4 bg-stone-900 border-t border-stone-800 shrink-0">
+            <div className="p-4 bg-stone-900 border-t border-stone-800 shrink-0 mb-safe-bottom">
               <div className="relative">
                 <input
                   type="text"
