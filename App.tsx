@@ -19,6 +19,7 @@ function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isDevModalOpen, setIsDevModalOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [chatSuggestion, setChatSuggestion] = useState<string | undefined>(undefined);
   const { scrollY } = useScroll();
 
   const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
@@ -74,6 +75,11 @@ function App() {
        }
        return item;
     }));
+  };
+
+  const handleAskConcierge = (item: MenuItem) => {
+    setChatSuggestion(`What would you pair with the ${item.name}?`);
+    setIsChatOpen(true);
   };
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -202,7 +208,7 @@ function App() {
           </motion.div>
         </motion.section>
 
-        <MenuGrid addToCart={addToCart} />
+        <MenuGrid addToCart={addToCart} onAskConcierge={handleAskConcierge} />
 
         {/* Footer */}
         <section id="about" className="py-24 bg-stone-900 border-t border-stone-800 relative overflow-hidden">
@@ -236,6 +242,8 @@ function App() {
         addToCart={addToCart}
         removeFromCart={removeFromCartById}
         cart={cart}
+        suggestedMessage={chatSuggestion}
+        onClearSuggestion={() => setChatSuggestion(undefined)}
       />
 
       {/* Floating Chat Button - Only visible when chat is closed */}

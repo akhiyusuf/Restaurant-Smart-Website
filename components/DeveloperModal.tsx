@@ -68,7 +68,7 @@ const DeveloperModal: React.FC<DeveloperModalProps> = ({ isOpen, onClose }) => {
                          <ul className="space-y-2 text-sm text-stone-400">
                             <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Google Gemini 3 Flash</li>
                             <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Real-time Function Calling</li>
-                            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Dynamic Asset Generation</li>
+                            <li className="flex items-center gap-2"><div className="w-1 h-1 bg-stone-600 rounded-full"></div>Dynamic Imagen Generation</li>
                         </ul>
                     </div>
                 </div>

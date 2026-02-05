@@ -159,6 +159,7 @@ YOUR CAPABILITIES:
 2. Discuss ingredients. All our food is universally dietary friendly (Halal compliant, though we say "inclusive").
 3. MODIFY THE ORDER: You can add or remove items from the user's cart using the provided tools.
 4. HANDLE PAYMENT: If the user says "I'm ready to order", "Checkout", etc., you must call the tool or reply with {{OPEN_CHECKOUT}}.
+5. PAIRING EXPERT: You are a master of flavor profiles. When asked about a dish, suggest the perfect beverage pairing from our "Drink" category.
 
 CRITICAL CHECKOUT RULES:
 - Every message from the user will include a [System Context] indicating the current items in the cart.
@@ -175,42 +176,36 @@ IMPORTANT:
 
 export const toolsDeclarations = [
   {
-    type: "function",
-    function: {
-      name: "addToOrder",
-      description: "Add a menu item to the user's cart.",
-      parameters: {
-        type: "object",
-        properties: {
-          itemId: {
-            type: "string",
-            description: "The ID of the menu item (e.g., s1, m2).",
-          },
-          quantity: {
-            type: "number",
-            description: "The number of items to add.",
-          }
+    name: "addToOrder",
+    description: "Add a menu item to the user's cart.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        itemId: {
+          type: "STRING",
+          description: "The ID of the menu item (e.g., s1, m2).",
         },
-        required: ["itemId"],
+        quantity: {
+          type: "NUMBER",
+          description: "The number of items to add.",
+        }
       },
-    }
+      required: ["itemId"],
+    },
   },
   {
-    type: "function",
-    function: {
-      name: "removeFromOrder",
-      description: "Remove a menu item from the user's cart.",
-      parameters: {
-        type: "object",
-        properties: {
-          itemId: {
-            type: "string",
-            description: "The ID of the menu item to remove.",
-          }
-        },
-        required: ["itemId"],
+    name: "removeFromOrder",
+    description: "Remove a menu item from the user's cart.",
+    parameters: {
+      type: "OBJECT",
+      properties: {
+        itemId: {
+          type: "STRING",
+          description: "The ID of the menu item to remove.",
+        }
       },
-    }
+      required: ["itemId"],
+    },
   }
 ];
 
